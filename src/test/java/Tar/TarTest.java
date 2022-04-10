@@ -1,10 +1,10 @@
 package Tar;
 
 import org.junit.Test;
+import org.junit.BeforeClass;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Assert;
-import org.junit.Before;
-
 import static org.junit.Assert.fail;
 
 import java.io.BufferedReader;
@@ -23,16 +23,22 @@ import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.io.FileUtils;
 
 public class TarTest {
-    private final List<String> testFN = Arrays.asList(
+    private static final List<String> testFN = Arrays.asList(
             "test-random-file-1.txt",
             "test-random-file-2.txt",
             "test-random-file-3.txt",
             "test-random-file-4.txt");
-    private final String outDirName = "outDir";
-    private final String[] unzipArgs = "-u outDir/test-archive.txt".split(" ");
+    private static final String outDirName = "outDir";
+    private static final String[] unzipArgs = "-u outDir/test-archive.txt".split(" ");
 
-    @Before
-    public void generateRandomTestFiles() {
+    // Max dimentions for a test file
+    private static final int maxLines = 100;
+    private static final int minLines = 10;
+    private static final int maxLineLen = 100;
+    private static final int minLineLen = 10;
+
+    @BeforeClass
+    public static void generateRandomTestFiles() {
         try {
             // Create directory for output files
             new File(outDirName).mkdirs();
@@ -40,12 +46,6 @@ public class TarTest {
             for (String filename : testFN) {
                 BufferedWriter writer = new BufferedWriter(new FileWriter(filename));
 
-                // Just some constants
-                final int maxLines = 100;
-                final int minLines = 10;
-                final int maxLineLen = 100;
-                final int minLineLen = 10;
-    
                 final Random rand = new Random();
                 final int lineLen = minLines + (Math.abs(rand.nextInt()) % maxLines);
 
@@ -57,12 +57,21 @@ public class TarTest {
             }
 
         } catch (IOException ioEx) {
-            Tar.Main.printError("Failed to crate file");
+            Tar.Main.printError("Failed to create a test file");
             fail(ioEx.getMessage());
         }
     }
 
-    private boolean compareFileContence(String filename1, String filename2) {
+    @After
+    public void cleanTestDirectory() {
+        try {
+            FileUtils.cleanDirectory(new File(outDirName));
+        } catch (IOException ioEx) {
+            fail(ioEx.getMessage());
+        }
+    }
+
+    private boolean compareFileContent(String filename1, String filename2) {
         if (!(new File(filename1).exists() && new File(filename2).exists()))
             return false;
 
@@ -70,30 +79,25 @@ public class TarTest {
             return false;
 
         try {
-            BufferedReader reader1 = new BufferedReader(new FileReader(filename1));
-            BufferedReader reader2 = new BufferedReader(new FileReader(filename2));
+            try (BufferedReader reader1 = new BufferedReader(new FileReader(filename1));
+                    BufferedReader reader2 = new BufferedReader(new FileReader(filename2))) {
 
-            final int mb = 1_048_576;
-            final int max_size = mb / 2;
-            char[] buffer1 = new char[max_size];
-            char[] buffer2 = new char[max_size];
+                char[] buffer1 = new char[Constants.max_size / 2];
+                char[] buffer2 = new char[Constants.max_size / 2];
 
-            // A this point we know, that filesizes are identical
-            long toRead = new File(filename1).length();
-            do {
-                reader1.read(buffer1, 0, (int) Math.min(toRead, max_size));
-                reader2.read(buffer2, 0, (int) Math.min(toRead, max_size));
+                // A this point we know, that filesizes are identical
+                long toRead = new File(filename1).length();
+                do {
+                    reader1.read(buffer1, 0, (int) Math.min(toRead, Constants.max_size));
+                    reader2.read(buffer2, 0, (int) Math.min(toRead, Constants.max_size));
 
-                if (!Arrays.equals(buffer1, buffer2)) {
-                    reader1.close();
-                    reader2.close();
-                    return false;
-                }
-                toRead -= max_size;
-            } while (toRead > 0);
-            reader1.close();
-            reader2.close();
-            return true;
+                    if (!Arrays.equals(buffer1, buffer2)) {
+                        return false;
+                    }
+                    toRead -= Constants.max_size;
+                } while (toRead > 0);
+                return true;
+            }
         } catch (IOException ioEx) {
             fail(ioEx.getMessage());
 
@@ -116,37 +120,26 @@ public class TarTest {
         Tar.Main.main(testArgs1);
         Assert.assertTrue(new File("outDir/test-archive.txt").exists());
         Tar.Main.main(unzipArgs);
-        Assert.assertTrue(compareFileContence(testFN.get(0), "outDir/" + testFN.get(0)));
-        try {
-            FileUtils.cleanDirectory(new File(outDirName));
-        } catch (IOException ioEx) {
-            fail(ioEx.getMessage());
-        }
+        Assert.assertTrue(compareFileContent(testFN.get(0), "outDir/" + testFN.get(0)));
+
+        cleanTestDirectory();
 
         Tar.Main.main(testArgs2);
         Assert.assertTrue(new File("outDir/test-archive.txt").exists());
         Tar.Main.main(unzipArgs);
-        Assert.assertTrue(compareFileContence(testFN.get(0), "outDir/" + testFN.get(0)));
-        Assert.assertTrue(compareFileContence(testFN.get(1), "outDir/" + testFN.get(1)));
-        Assert.assertTrue(compareFileContence(testFN.get(2), "outDir/" + testFN.get(2)));
-        try {
-            FileUtils.cleanDirectory(new File(outDirName));
-        } catch (IOException ioEx) {
-            fail(ioEx.getMessage());
-        }
+        Assert.assertTrue(compareFileContent(testFN.get(0), "outDir/" + testFN.get(0)));
+        Assert.assertTrue(compareFileContent(testFN.get(1), "outDir/" + testFN.get(1)));
+        Assert.assertTrue(compareFileContent(testFN.get(2), "outDir/" + testFN.get(2)));
+
+        cleanTestDirectory();
 
         Tar.Main.main(testArgs3);
         Assert.assertTrue(new File("outDir/test-archive.txt").exists());
         Tar.Main.main(unzipArgs);
-        Assert.assertTrue(compareFileContence(testFN.get(0), "outDir/" + testFN.get(0)));
-        Assert.assertTrue(compareFileContence(testFN.get(1), "outDir/" + testFN.get(1)));
-        Assert.assertTrue(compareFileContence(testFN.get(2), "outDir/" + testFN.get(2)));
-        Assert.assertTrue(compareFileContence(testFN.get(3), "outDir/" + testFN.get(3)));
-        try {
-            FileUtils.cleanDirectory(new File(outDirName));
-        } catch (IOException ioEx) {
-            fail(ioEx.getMessage());
-        }
+        Assert.assertTrue(compareFileContent(testFN.get(0), "outDir/" + testFN.get(0)));
+        Assert.assertTrue(compareFileContent(testFN.get(1), "outDir/" + testFN.get(1)));
+        Assert.assertTrue(compareFileContent(testFN.get(2), "outDir/" + testFN.get(2)));
+        Assert.assertTrue(compareFileContent(testFN.get(3), "outDir/" + testFN.get(3)));
     }
 
     @Test
@@ -169,39 +162,29 @@ public class TarTest {
         Tar.Main.main(testArgs1);
         Assert.assertTrue(new File("outDir/test-archive.txt").exists());
         Tar.Main.main(unzipArgs);
-        Assert.assertTrue(compareFileContence("empty-file.txt", "outDir/" + "empty-file.txt"));
-        Assert.assertTrue(compareFileContence(testFN.get(1), "outDir/" + testFN.get(1)));
-        Assert.assertTrue(compareFileContence(testFN.get(2), "outDir/" + testFN.get(2)));
-        try {
-            FileUtils.cleanDirectory(new File(outDirName));
-        } catch (IOException ioEx) {
-            fail(ioEx.getMessage());
-        }
+        Assert.assertTrue(compareFileContent("empty-file.txt", "outDir/" + "empty-file.txt"));
+        Assert.assertTrue(compareFileContent(testFN.get(1), "outDir/" + testFN.get(1)));
+        Assert.assertTrue(compareFileContent(testFN.get(2), "outDir/" + testFN.get(2)));
+
+        cleanTestDirectory();
 
         Tar.Main.main(testArgs2);
         Assert.assertTrue(new File("outDir/test-archive.txt").exists());
         Tar.Main.main(unzipArgs);
-        Assert.assertTrue(compareFileContence(testFN.get(0), "outDir/" + testFN.get(0)));
-        Assert.assertTrue(compareFileContence("empty-file.txt", "outDir/" + "empty-file.txt"));
-        Assert.assertTrue(compareFileContence(testFN.get(2), "outDir/" + testFN.get(2)));
-        try {
-            FileUtils.cleanDirectory(new File(outDirName));
-        } catch (IOException ioEx) {
-            fail(ioEx.getMessage());
-        }
+        Assert.assertTrue(compareFileContent(testFN.get(0), "outDir/" + testFN.get(0)));
+        Assert.assertTrue(compareFileContent("empty-file.txt", "outDir/" + "empty-file.txt"));
+        Assert.assertTrue(compareFileContent(testFN.get(2), "outDir/" + testFN.get(2)));
+
+        cleanTestDirectory();
 
         Tar.Main.main(testArgs3);
         Assert.assertTrue(new File("outDir/test-archive.txt").exists());
         Tar.Main.main(unzipArgs);
-        Assert.assertTrue(compareFileContence(testFN.get(0), "outDir/" + testFN.get(0)));
-        Assert.assertTrue(compareFileContence(testFN.get(1), "outDir/" + testFN.get(1)));
-        Assert.assertTrue(compareFileContence("empty-file.txt", "outDir/" + "empty-file.txt"));
-        try {
-            FileUtils.cleanDirectory(new File(outDirName));
-            Files.deleteIfExists(Paths.get("empty-file.txt"));
-        } catch (IOException ioEx) {
-            fail(ioEx.getMessage());
-        }
+        Assert.assertTrue(compareFileContent(testFN.get(0), "outDir/" + testFN.get(0)));
+        Assert.assertTrue(compareFileContent(testFN.get(1), "outDir/" + testFN.get(1)));
+        Assert.assertTrue(compareFileContent("empty-file.txt", "outDir/" + "empty-file.txt"));
+
+        new File("empty-file.txt").delete();
     }
 
     // By different encodings i mean just ascii ¯\_(ツ)_/¯
@@ -210,11 +193,6 @@ public class TarTest {
         try {
             new File("ascii-file.txt").createNewFile();
             BufferedWriter writer = new BufferedWriter(new FileWriter("ascii-file.txt"));
-
-            // Just some constants
-            final int maxLines = 100;
-            final int minLines = 10;
-            final int maxLineLen = 100;
 
             final Random rand = new Random();
             final int lineLen = minLines + (Math.abs(rand.nextInt()) % maxLines);
@@ -232,19 +210,52 @@ public class TarTest {
         Tar.Main.main(testArgs);
         Assert.assertTrue(new File("outDir/test-archive.txt").exists());
         Tar.Main.main(unzipArgs);
-        Assert.assertTrue(compareFileContence("ascii-file.txt", "outDir/" + "ascii-file.txt"));
-        Assert.assertTrue(compareFileContence(testFN.get(1), "outDir/" + testFN.get(1)));
-        Assert.assertTrue(compareFileContence(testFN.get(2), "outDir/" + testFN.get(2)));
+        Assert.assertTrue(compareFileContent("ascii-file.txt", "outDir/" + "ascii-file.txt"));
+        Assert.assertTrue(compareFileContent(testFN.get(1), "outDir/" + testFN.get(1)));
+        Assert.assertTrue(compareFileContent(testFN.get(2), "outDir/" + testFN.get(2)));
+
+        new File("ascii-file.txt").delete();
+    }
+
+    @Test
+    public void filenames() {
+        List<String> filenames = Arrays.asList(
+                "normalFilename.txt",
+                "with spaces.txt",
+                "without extention",
+                "multiple dots.jpg.txt",
+                "strange name [1002]");
 
         try {
-            Files.deleteIfExists(Paths.get("ascii-file.txt"));
+            for (String filename : filenames) {
+                new File(filename).createNewFile();
+            }
+
         } catch (IOException ioEx) {
+            Tar.Main.printError("Failed to crate a test file");
             fail(ioEx.getMessage());
+        }
+
+        String[] testArgs = new String[] {
+                "-out", "outDir/test-archive.txt",
+                filenames.get(0), filenames.get(1),
+                filenames.get(2), filenames.get(3),
+                filenames.get(4),
+        };
+        Tar.Main.main(testArgs);
+        Tar.Main.main(unzipArgs);
+        for (String filename : filenames) {
+            Assert.assertTrue(new File("outDir/" + filename).exists());
+        }
+
+
+        for (String filename : filenames) {
+            new File(filename).delete();
         }
     }
 
-    @After
-    public void deleteTestFiles() throws IOException {
+    @AfterClass
+    public static void deleteTestFiles() throws IOException {
         for (String filename : testFN) {
             Files.deleteIfExists(Paths.get(filename));
         }

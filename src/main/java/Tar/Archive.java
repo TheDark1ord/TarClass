@@ -1,118 +1,115 @@
 package Tar;
 
+import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.FileReader;
 import java.io.IOException;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.commons.io.FilenameUtils;
 
 class Archive {
-    // Checks if the given filename is a valid filename in windows
+    // Checks if the given filename is a valid filename in Windows
     public static boolean checkFilename(String filename) {
-        Set<Character> excludedChars = new HashSet<Character>(
+        Set<Character> excludedChars = new HashSet<>(
                 Arrays.asList('/', '\n', '\r', '\t', '\0',
                         '\f', '`', '?', '*', '\\', '<', '>', '|', '\"', ':'));
-        return !filename.chars().mapToObj((i) -> (char) i).anyMatch(excludedChars::contains);
+        return filename.chars().mapToObj((i) -> (char) i).noneMatch(excludedChars::contains);
     }
 
-    private String filename;
-    private FileInputStream fileIS;
-    // Files, contained in given archive
-    // String - filename(duh)d
-    // Integer - file size in bytes
-    private List<Tuple<String, Integer>> files;
-
-    // Header size, but with included first line
-    // Used to set the offset when reading data blocks from archive
-    int headerOffset;
-
     Archive(String filename) throws IOException {
-        files = new ArrayList<Tuple<String, Integer>>();
+        if (!(new File(filename).canRead())) {
+            throw new IOException("Given archive cannot be read");
+        }
+        fileIS = new FileInputStream(filename);
+
+        files = new ArrayList<>();
 
         this.filename = filename;
-        fileIS = new FileInputStream(filename);
         readHeader();
     }
 
     // Read header section of the file and save read data to files
     private void readHeader() throws IOException {
-        // Just reading bytes until we encounter new line and converting them to chars
-        StringBuilder firstLineBuild = new StringBuilder();
-        do {
-            firstLineBuild.append((Character)(char)(fileIS.read()));
-        } while (firstLineBuild.charAt(firstLineBuild.length() - 1) != '\n');
-        String[] headerData = firstLineBuild.toString().split(" ");
-
-        // Assert if the first line is valid
-        if (headerData.length != 2
-                || headerData[1].length() < 3
-                || !headerData[0].equals("header")
-                || !headerData[1].startsWith("[") || headerData[1].endsWith("]")) {
-            throw new IOException("Invalid header in file" + filename);
+        Tuple<String, Integer> headerData;
+        String firstString;
+        try (BufferedReader fileReader = new BufferedReader(new FileReader(filename, Constants.headerEncoding))) {
+            firstString = fileReader.readLine();
+            headerData = getFileData(firstString);
+            if (!headerData.first.equals("header")) {
+                throw new IOException("Invalid header in file" + filename);
+            }
         }
-
-        // Size of the header in bytes excluding the first line
-        int headerSize;
-        try {
-            headerSize = Integer.parseInt(headerData[1].substring(1, headerData[1].length() - 2));
-        } catch (NumberFormatException nfEx) {
-            throw new IOException("Invalid header in file" + filename);
-        }
-        int firstLineLength = (headerData[0].length() + headerData[1].length());
-        headerOffset = headerSize + firstLineLength;
+        fileIS.skipNBytes(firstString.getBytes(Constants.headerEncoding).length + 1 /*account for \n char*/);
 
         // Read the rest of the header
-        byte[] buffer = new byte[headerSize];
-        fileIS.read(buffer, 0, headerSize);
+        byte[] buffer = new byte[headerData.second];
+        fileIS.read(buffer, 0, headerData.second);
 
-        String headerString = new String(buffer, "UTF-8");
+        String headerString = new String(buffer, Constants.headerEncoding);
         String[] headerLines = headerString.split("\n");
 
         for (String line : headerLines) {
-            String[] lineData = line.split(" ");
-
-            // Assert the read line is valid
-            if (lineData.length != 2
-                    || lineData[1].length() < 3
-                    || lineData[0].length() == 0
-                    || !lineData[1].startsWith("[") || headerData[1].endsWith("]")
-                    || !checkFilename(lineData[0])) {
-                throw new IOException("Invalid header in file" + filename);
-            }
-
-            int filesize;
-            try {
-                filesize = Integer.parseInt(lineData[1].substring(1, lineData[1].length() - 1));
-            } catch (NumberFormatException nfEx) {
-                throw new IOException("Invalid header in file" + filename);
-            }
-
-            files.add(new Tuple<String, Integer>(lineData[0], filesize));
+            Tuple<String, Integer> fileData = getFileData(line);
+            files.add(new Tuple<>(fileData.first, fileData.second));
         }
     }
 
-    
     public void unzip() throws IOException {
-        // How much bytes contained in 1 mb
-        final int mb = 1_048_576;
-        final int max_size = 10 * mb;
-        byte[] buffer = new byte[max_size];
-
         String path = FilenameUtils.getPath(filename);
 
         for (Tuple<String, Integer> file : files) {
-            FileOutputStream fOS = new FileOutputStream(path + file.first);
-
-            // Read archive content and write it to file(max 10mb at a time)
-            int toRead = file.second;
-            do {
-                fileIS.read(buffer, 0, Math.min(toRead, max_size));
-                fOS.write(buffer, 0, Math.min(toRead, max_size));
-                toRead -= max_size;
-            } while (toRead > 0);
-            fOS.close();
+            try (FileOutputStream fOS = new FileOutputStream(path + file.first)) {
+                // Read archive content and write it to file
+                int toRead = file.second;
+                byte[] buffer = new byte[Constants.max_size];
+                do {
+                    fileIS.read(buffer, 0, Math.min(toRead, Constants.max_size));
+                    fOS.write(buffer, 0, Math.min(toRead, Constants.max_size));
+                    toRead -= Constants.max_size;
+                } while (toRead > 0);
+            }
         }
         fileIS.close();
     }
+
+    // Get filename and filesize from one line in the header
+    private Tuple<String, Integer> getFileData(String rawString) throws IOException {
+        Pattern filenamePattern = Pattern.compile("^[\\s\\S.]+(?=\\s\\[)");
+        Pattern filesizePattern = Pattern.compile("(?<=\\s\\[)\\d+(?=\\]$)");
+
+        Matcher filenameMatcher = filenamePattern.matcher(rawString);
+        Matcher filesizeMatcher = filesizePattern.matcher(rawString);
+
+        if (!filenameMatcher.find() || !filesizeMatcher.find()) {
+            throw new IOException("Invalid header in file" + filename);
+        }
+
+        int size;
+        try {
+            size = Integer.parseInt(rawString.substring(filesizeMatcher.start(), filesizeMatcher.end()));
+        } catch (NumberFormatException nfEx) {
+            throw new IOException("Invalid header in file" + filename);
+        }
+
+        Tuple<String, Integer> out = new Tuple<>(
+                rawString.substring(filenameMatcher.start(), filenameMatcher.end()), size);
+
+        if (!checkFilename(out.first)) {
+            throw new IOException("Invalid header in file" + filename);
+        }
+
+        return out;
+    }
+
+    private String filename;
+    private FileInputStream fileIS;
+    // Files, contained in given archive
+    // String - filename
+    // Integer - file size in bytes
+    private List<Tuple<String, Integer>> files;
 }
