@@ -17,7 +17,7 @@ public class Archiver {
                 throw new IllegalArgumentException(
                         "File " + file + " does not exist");
             }
-            files.add(new Tuple<>(nF.getName(), nF.length()));
+            files.add(new Tuple<>(nF.toString(), nF.length()));
         }
     }
 
@@ -30,13 +30,16 @@ public class Archiver {
             // Construct and write the header
             StringBuilder toWrite = new StringBuilder();
             for (Tuple<String, Long> file : files) {
-                toWrite.append(file.first);
+                // Separate the name of the file
+                toWrite.append(file.first.substring(file.first.lastIndexOf("\\") + 1));
                 toWrite.append(" [");
                 toWrite.append(file.second.toString());
                 toWrite.append("]\n");
             }
             // Write header size at the start
-            writer.write(("header [" + (toWrite.length()) + "]\n").getBytes(Constants.headerEncoding));
+            writer.write(
+                    ("header [" + (toWrite.toString().getBytes(Constants.headerEncoding).length) + "]\n")
+                            .getBytes(Constants.headerEncoding));
             writer.write(toWrite.toString().getBytes(Constants.headerEncoding));
 
             // Write file contents
