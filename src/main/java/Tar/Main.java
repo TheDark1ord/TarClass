@@ -17,7 +17,6 @@ public class Main {
             }
         } catch (RuntimeException | IOException rtEx) {
             printError(rtEx.getMessage());
-            System.exit(-1);
         }
     }
 

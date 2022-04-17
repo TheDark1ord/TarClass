@@ -103,26 +103,26 @@ public class TarTest {
             try (BufferedReader reader1 = new BufferedReader(new FileReader(filename1));
                     BufferedReader reader2 = new BufferedReader(new FileReader(filename2))) {
 
-                char[] buffer1 = new char[Constants.max_size / 2];
-                char[] buffer2 = new char[Constants.max_size / 2];
+                char[] buffer1 = new char[Constants.max_buffer_size / 2];
+                char[] buffer2 = new char[Constants.max_buffer_size / 2];
 
                 // A this point we know, that filesizes are identical
                 long toRead = new File(filename1).length();
                 do {
-                    reader1.read(buffer1, 0, (int) Math.min(toRead, Constants.max_size));
-                    reader2.read(buffer2, 0, (int) Math.min(toRead, Constants.max_size));
+                    reader1.read(buffer1, 0, (int) Math.min(toRead, Constants.max_buffer_size));
+                    reader2.read(buffer2, 0, (int) Math.min(toRead, Constants.max_buffer_size));
 
                     if (!Arrays.equals(buffer1, buffer2)) {
                         return false;
                     }
-                    toRead -= Constants.max_size;
+                    toRead -= Constants.max_buffer_size;
                 } while (toRead > 0);
                 return true;
             }
         } catch (IOException ioEx) {
             fail(ioEx.getMessage());
 
-            // Just to make compiler happy
+            // Just to make the compiler happy
             return false;
         }
     }
@@ -204,8 +204,6 @@ public class TarTest {
         Assert.assertTrue(compareFileContent(testFN.get(0), outDirName + testFN.get(0)));
         Assert.assertTrue(compareFileContent(testFN.get(1), outDirName + testFN.get(1)));
         Assert.assertTrue(compareFileContent(tempDirName + "empty-file.txt", outDirName + "empty-file.txt"));
-
-        new File(tempDirName + "empty-file.txt").delete();
     }
 
     // By different encodings i mean just ascii ¯\_(ツ)_/¯
@@ -234,8 +232,6 @@ public class TarTest {
         Assert.assertTrue(compareFileContent(tempDirName + "ascii-file.txt", outDirName + "ascii-file.txt"));
         Assert.assertTrue(compareFileContent(testFN.get(1), outDirName + testFN.get(1)));
         Assert.assertTrue(compareFileContent(testFN.get(2), outDirName + testFN.get(2)));
-
-        new File(tempDirName + "ascii-file.txt").delete();
     }
 
     @Test

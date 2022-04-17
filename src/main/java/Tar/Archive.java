@@ -15,7 +15,7 @@ import org.apache.commons.io.FilenameUtils;
 class Archive {
     // Checks if the given filename is a valid filename in Windows
     public static boolean checkFilename(String filename) {
-        Set<Character> excludedChars = new HashSet<>(
+        final Set<Character> excludedChars = new HashSet<>(
                 Arrays.asList('/', '\n', '\r', '\t', '\0',
                         '\f', '`', '?', '*', '\\', '<', '>', '|', '\"', ':'));
         return filename.chars().mapToObj((i) -> (char) i).noneMatch(excludedChars::contains);
@@ -26,14 +26,13 @@ class Archive {
             throw new IOException("Given archive cannot be read");
         }
         fileIS = new FileInputStream(filename);
-
         files = new ArrayList<>();
-
         this.filename = filename;
+
         readHeader();
     }
 
-    // Read header section of the file and save read data to files
+    // Read header section of the file and save read data to files variable
     private void readHeader() throws IOException {
         Tuple<String, Integer> headerData;
         String firstString;
@@ -66,11 +65,12 @@ class Archive {
             try (FileOutputStream fOS = new FileOutputStream(path + file.first)) {
                 // Read archive content and write it to file
                 int toRead = file.second;
-                byte[] buffer = new byte[Constants.max_size];
+                int readBytes;
+                byte[] buffer = new byte[Constants.max_buffer_size];
                 do {
-                    fileIS.read(buffer, 0, Math.min(toRead, Constants.max_size));
-                    fOS.write(buffer, 0, Math.min(toRead, Constants.max_size));
-                    toRead -= Constants.max_size;
+                    readBytes = fileIS.read(buffer, 0, Math.min(toRead, Constants.max_buffer_size));
+                    fOS.write(buffer, 0, readBytes);
+                    toRead -= readBytes;
                 } while (toRead > 0);
             }
         }
@@ -95,14 +95,12 @@ class Archive {
         } catch (NumberFormatException nfEx) {
             throw new IOException("Invalid header in file" + filename);
         }
-
         Tuple<String, Integer> out = new Tuple<>(
                 rawString.substring(filenameMatcher.start(), filenameMatcher.end()), size);
 
         if (!checkFilename(out.first)) {
             throw new IOException("Invalid header in file" + filename);
         }
-
         return out;
     }
 

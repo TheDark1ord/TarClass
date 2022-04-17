@@ -47,11 +47,12 @@ public class Archiver {
                 try (FileInputStream fileIS = new FileInputStream(file.first)) {
                     // Read archive content and write it to file
                     long toRead = file.second;
-                    byte[] buffer = new byte[Constants.max_size];
+                    int readBytes;
+                    byte[] buffer = new byte[Constants.max_buffer_size];
                     do {
-                        fileIS.read(buffer, 0, (int) Math.min(toRead, Constants.max_size));
-                        writer.write(buffer, 0, (int) Math.min(toRead, Constants.max_size));
-                        toRead -= Constants.max_size;
+                        readBytes = fileIS.read(buffer, 0, (int) Math.min(toRead, Constants.max_buffer_size));
+                        writer.write(buffer, 0, readBytes);
+                        toRead -= readBytes;
                     } while (toRead > 0);
                 }
             }
