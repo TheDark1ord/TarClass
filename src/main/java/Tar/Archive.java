@@ -50,7 +50,7 @@ class Archive {
         // Hom many bytes was read
         int readBytes = 0;
         do {
-            readBytes += fileIS.read(buffer, 0, headerData.second - readBytes);
+            readBytes += fileIS.read(buffer, readBytes, headerData.second - readBytes);
         } while (headerData.second < readBytes);
 
         String headerString = new String(buffer, Constants.headerEncoding);

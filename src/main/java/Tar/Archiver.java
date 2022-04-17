@@ -47,6 +47,7 @@ public class Archiver {
                 try (FileInputStream fileIS = new FileInputStream(file.first)) {
                     // Read archive content and write it to file
                     long toRead = file.second;
+                    // How many bytes was read
                     int readBytes;
                     byte[] buffer = new byte[Constants.max_buffer_size];
                     do {
