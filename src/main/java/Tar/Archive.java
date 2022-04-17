@@ -47,7 +47,11 @@ class Archive {
 
         // Read the rest of the header
         byte[] buffer = new byte[headerData.second];
-        fileIS.read(buffer, 0, headerData.second);
+        // Hom many bytes was read
+        int readBytes = 0;
+        do {
+            readBytes += fileIS.read(buffer, 0, headerData.second - readBytes);
+        } while (headerData.second < readBytes);
 
         String headerString = new String(buffer, Constants.headerEncoding);
         String[] headerLines = headerString.split("\n");
@@ -105,10 +109,10 @@ class Archive {
         return out;
     }
 
-    private String filename;
-    private FileInputStream fileIS;
+    private final String filename;
+    private final FileInputStream fileIS;
     // Files, contained in given archive
     // String - filename
     // Integer - file size in bytes
-    private List<Tuple<String, Integer>> files;
+    private final List<Tuple<String, Integer>> files;
 }
