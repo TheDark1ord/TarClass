@@ -65,6 +65,7 @@ class Archive {
             try (FileOutputStream fOS = new FileOutputStream(path + file.first)) {
                 // Read archive content and write it to file
                 int toRead = file.second;
+                // How much bytes was read
                 int readBytes;
                 byte[] buffer = new byte[Constants.max_buffer_size];
                 do {
